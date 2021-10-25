@@ -17,6 +17,50 @@ defmodule GenReport do
     {:error, "Insira o nome de um arquivo"}
   end
 
+  def build_from_many(filenames) when not is_list(filenames) do
+    {:error, "Please provide a list of string"}
+  end
+
+  def build_from_many(filenames) do
+    result =
+      filenames
+      |> Task.async_stream(&build/1)
+      |> Enum.reduce(generate_acc(), fn {:ok, result}, report -> sum_reports(report, result) end)
+
+    {:ok, result}
+  end
+
+  defp sum_reports(
+         %{
+           "all_hours" => all_hours1,
+           "hours_per_month" => hours_per_month1,
+           "hours_per_year" => hours_per_year1
+         },
+         %{
+           "all_hours" => all_hours2,
+           "hours_per_month" => hours_per_month2,
+           "hours_per_year" => hours_per_year2
+         }
+       ) do
+    all_hours = merge_maps(all_hours1, all_hours2)
+    hours_per_month = merge_maps(hours_per_month1, hours_per_month2)
+    hours_per_year = merge_maps(hours_per_year1, hours_per_year2)
+
+    %{
+      "all_hours" => all_hours,
+      "hours_per_month" => hours_per_month,
+      "hours_per_year" => hours_per_year
+    }
+  end
+
+  defp merge_maps(map1, map2) do
+    Map.merge(map1, map2, fn _key, value1, value2 ->
+      if is_map(value1) and is_map(value2),
+        do: merge_maps(value1, value2),
+        else: value1 + value2
+    end)
+  end
+
   defp reduce_handler(
          [name, hours, _day, month, year],
          %{
